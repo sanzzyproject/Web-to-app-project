@@ -29,6 +29,7 @@ export default function Home() {
   
   // Rate limiting state
   const [lastBuildTime, setLastBuildTime] = useState<number | null>(null);
+  const [timeRemaining, setTimeRemaining] = useState<string | null>(null);
 
   useEffect(() => {
     // Load history from local storage
@@ -47,6 +48,30 @@ export default function Home() {
       setLastBuildTime(Number(lastTime));
     }
   }, []);
+
+  useEffect(() => {
+    if (lastBuildTime) {
+      const checkRateLimit = () => {
+        const timeDiff = Date.now() - lastBuildTime;
+        const oneDay = 24 * 60 * 60 * 1000;
+        if (timeDiff < oneDay) {
+          const remainingMs = oneDay - timeDiff;
+          const h = Math.floor(remainingMs / (1000 * 60 * 60));
+          const m = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
+          const s = Math.floor((remainingMs % (1000 * 60)) / 1000);
+          
+          const formatted = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+          setTimeRemaining(formatted);
+        } else {
+          setTimeRemaining(null);
+        }
+      };
+      
+      checkRateLimit();
+      const interval = setInterval(checkRateLimit, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [lastBuildTime]);
 
   const saveHistory = (items: HistoryItem[]) => {
     setHistory(items);
@@ -75,8 +100,12 @@ export default function Home() {
     }
 
     if (lastBuildTime && Date.now() - lastBuildTime < 24 * 60 * 60 * 1000) {
-      const remainingHours = Math.ceil((24 * 60 * 60 * 1000 - (Date.now() - lastBuildTime)) / (60 * 60 * 1000));
-      setError(`Daily limit reached. To prevent spam, you can only generate 1 app per 24 hours. Please try again in ${remainingHours} hours.`);
+      const remainingMs = 24 * 60 * 60 * 1000 - (Date.now() - lastBuildTime);
+      const h = Math.floor(remainingMs / (1000 * 60 * 60));
+      const m = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
+      const s = Math.floor((remainingMs % (1000 * 60)) / 1000);
+      const formatted = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+      setError(`Rate limit maksimal riset 1 hari 1 kali. Anda sudah membuat aplikasi hari ini. Tunggu besok (${formatted} lagi) untuk membuat aplikasi baru.`);
       return;
     }
     
@@ -297,7 +326,7 @@ export default function Home() {
                       placeholder="My Premium App"
                       value={appName}
                       onChange={(e) => setAppName(e.target.value)}
-                      disabled={isLoading || isDone || !!requestId}
+                      disabled={isLoading || isDone || !!requestId || !!timeRemaining}
                       className="w-full bg-background rounded-2xl px-5 py-4 text-base font-semibold focus:outline-none focus:ring-1 focus:ring-primary shadow-inner transition-all disabled:opacity-60 disabled:bg-gray-100 placeholder:font-normal placeholder:text-gray-400"
                     />
                   </div>
@@ -312,7 +341,7 @@ export default function Home() {
                         placeholder="example.com"
                         value={websiteUrl}
                         onChange={(e) => setWebsiteUrl(e.target.value)}
-                        disabled={isLoading || isDone || !!requestId}
+                        disabled={isLoading || isDone || !!requestId || !!timeRemaining}
                         className="w-full bg-background rounded-2xl pl-12 pr-5 py-4 text-base font-semibold focus:outline-none focus:ring-1 focus:ring-primary shadow-inner transition-all disabled:opacity-60 disabled:bg-gray-100 placeholder:font-normal placeholder:text-gray-400"
                       />
                     </div>
@@ -328,16 +357,29 @@ export default function Home() {
                       <p>{error}</p>
                     </motion.div>
                   )}
+                  
+                  {timeRemaining && !error && (
+                    <motion.div 
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      className="flex flex-col items-center justify-center gap-1.5 text-[#FF895D] bg-[#FFF5F0] border border-[#FFD8C9] p-4 rounded-2xl text-xs font-bold mt-1 text-center"
+                    >
+                      <AlertCircle className="w-5 h-5" />
+                      <p>Rate limit maksimal riset 1 hari 1 kali agar spam terhindarkan.<br/>1 orang tidak bisa bikin banyak2. Silahkan tunggu besok (<span className="font-mono text-sm tracking-widest">{timeRemaining}</span> lagi).</p>
+                    </motion.div>
+                  )}
                 </form>
 
                 <div className="bg-background/80 p-6 pt-5 mt-2 rounded-t-[2.5rem]">
                    {!requestId && !isDone && (
                     <button
                       onClick={handleSubmit}
-                      disabled={isLoading}
+                      disabled={isLoading || !!timeRemaining}
                       className="w-full bg-primary hover:bg-primary-hover text-white font-bold py-4 rounded-full flex items-center justify-center gap-2 transition-transform active:scale-[0.98] disabled:opacity-80 disabled:cursor-not-allowed shadow-[0_8px_20px_rgba(0,0,0,0.15)] text-[15px]"
                     >
-                      {isLoading ? (
+                      {timeRemaining ? (
+                        `Limit Tercapai (Tunggu Besok)`
+                      ) : isLoading ? (
                         <>
                           <Loader2 className="w-5 h-5 animate-spin" />
                           Processing Wrap...
